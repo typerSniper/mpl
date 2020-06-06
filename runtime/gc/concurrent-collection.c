@@ -417,7 +417,8 @@ void CC_collectAtPublicLevel(GC_state s, GC_thread thread, uint32_t depth) {
   assert(cp!=NULL); // it has to be the case that the currentHeap is well-formed from (HM_HH_new)
   if(cp->isCollecting
     || cp->snapLeft == BOGUS_OBJPTR
-    || cp->snapRight == BOGUS_OBJPTR) {
+    || cp->snapRight == BOGUS_OBJPTR
+    || cp->shouldCollect == false) {
     return;
   }
   else if(casCC(&(cp->isCollecting), false, true)) {
@@ -446,7 +447,7 @@ void CC_collectAtPublicLevel(GC_state s, GC_thread thread, uint32_t depth) {
   // return ;
   CC_collectWithRoots(s, currentHeap, currentHeap->concurrentPack);
   cp->isCollecting = false;
-
+  cp->shouldCollect= false;
   // assertInvariants(thread);
 
 }
@@ -603,7 +604,11 @@ void CC_collectWithRoots(GC_state s, HM_HierarchicalHeap targetHH,
   // for(HM_chunk chunk = origList->firstChunk; chunk!=NULL; chunk = chunk->nextChunk){
   //   saveChunk(chunk, &lists);
   // }
-
+  printf("sizes released  = ");
+  for(HM_chunk chunk = origList->firstChunk; chunk!=NULL; chunk = chunk->nextChunk) {
+    printf("%d ", HM_getChunkSize(chunk));
+  }
+  printf("\n");
   HM_appendChunkList(getFreeListSmall(s), origList);
   // linearUnmarkChunkList(s, &lists);
   origList->firstChunk = HM_getChunkListFirstChunk(repList);

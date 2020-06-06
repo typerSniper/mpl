@@ -36,6 +36,7 @@ typedef struct ConcurrentPackage {
 	objptr snapRight;
 	objptr stack;
 	bool isCollecting;
+	bool shouldCollect;
 } * ConcurrentPackage;
 
 // Assume complete access in this function

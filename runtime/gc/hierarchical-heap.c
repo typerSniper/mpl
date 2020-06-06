@@ -223,6 +223,7 @@ HM_HierarchicalHeap HM_HH_new(GC_state s, uint32_t depth)
   hh->concurrentPack = (ConcurrentPackage)
                       (start + sizeof(struct HM_HierarchicalHeap));
   hh->concurrentPack->isCollecting = false;
+  hh->concurrentPack->shouldCollect = true;
   hh->concurrentPack->rootList = NULL;
   hh->concurrentPack->snapLeft = BOGUS_OBJPTR;
   hh->concurrentPack->snapRight = BOGUS_OBJPTR;
