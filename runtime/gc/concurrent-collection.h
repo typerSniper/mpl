@@ -23,6 +23,7 @@ typedef struct ConcurrentCollectArgs {
 	HM_chunkList origList;
 	HM_chunkList repList;
 	void* toHead;
+	void* fromHead;
 } ConcurrentCollectArgs;
 
 typedef struct ConcurrentPackage {
@@ -33,6 +34,7 @@ typedef struct ConcurrentPackage {
 	//children roots
 	objptr snapLeft;
 	objptr snapRight;
+	objptr stack;
 	bool isCollecting;
 } * ConcurrentPackage;
 
@@ -50,7 +52,7 @@ void CC_addToStack(ConcurrentPackage cp, pointer p);
 
 bool CC_isPointerMarked (pointer p);
 
-
+void printObjPtrFunction(GC_state s, objptr* opp, void* rawArgs);
 
 #endif
 

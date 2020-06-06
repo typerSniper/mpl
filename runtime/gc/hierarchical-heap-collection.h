@@ -66,7 +66,10 @@ void forwardHHObjptr (GC_state s, objptr* opp, void* rawArgs);
 bool isObjptrInToSpace(objptr op, struct ForwardHHObjptrArgs *args);
 
 objptr relocateObject(GC_state s, objptr obj, HM_HierarchicalHeap tgtHeap, struct ForwardHHObjptrArgs *args);
-
+pointer copyObject(pointer p,
+                   size_t objectSize,
+                   size_t copySize,
+                   HM_HierarchicalHeap tgtHeap);
 #endif /* MLTON_GC_INTERNAL_FUNCS */
 
 #endif /* HIERARCHICAL_HEAP_H_ */

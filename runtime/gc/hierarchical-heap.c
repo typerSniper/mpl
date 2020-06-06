@@ -226,6 +226,7 @@ HM_HierarchicalHeap HM_HH_new(GC_state s, uint32_t depth)
   hh->concurrentPack->rootList = NULL;
   hh->concurrentPack->snapLeft = BOGUS_OBJPTR;
   hh->concurrentPack->snapRight = BOGUS_OBJPTR;
+  hh->concurrentPack->stack = BOGUS_OBJPTR;
   // hh->concurrentPack = NULL;
   hh->representative = NULL;
   hh->depth = depth;
@@ -385,18 +386,71 @@ void HM_HH_forceLeftHeap(uint32_t processor, pointer threadp) {
 void HM_HH_registerCont(pointer kl, pointer kr, pointer threadp) {
   // return;
   GC_state s = pthread_getspecific(gcstate_key);
+  beginAtomic(s);
+  switchToSignalHandlerThreadIfNonAtomicAndSignalPending(s);
   GC_thread thread = threadObjptrToStruct(s, pointerToObjptr(threadp, NULL));
-
   assert(thread != NULL);
+
+  HM_HH_updateValues(thread, s->frontier);
+
+  if (s->limitPlusSlop < s->frontier) {
+    DIE("s->limitPlusSlop (%p) < s->frontier (%p)",
+        ((void*)(s->limit)),
+        ((void*)(s->frontier)));
+  }
 
   HM_HierarchicalHeap hh = thread->hierarchicalHeap;
 
   assert(HM_getLevelHeadPathCompress(HM_getChunkOf(kl)) == hh);
   assert(HM_getLevelHeadPathCompress(HM_getChunkOf(kr)) == hh);
   assert(hh->concurrentPack != NULL);
+  HM_HH_updateValues(thread, s->frontier);
 
   hh->concurrentPack->snapLeft  =  pointerToObjptr(kl, NULL);
   hh->concurrentPack->snapRight =  pointerToObjptr(kr, NULL);
+
+  pointer stackPtr = objptrToPointer(getStackCurrentObjptr(s), NULL);
+  GC_stack stackP = (GC_stack) stackPtr;
+
+
+// #if ASSERT
+  // printf(" ============\nchunk of %p = %p\n ==============\n", stackPtr, HM_getChunkOf(stackPtr));
+  // printf("%s", "original stack: ");
+  // foreachObjptrInObject(s, stackPtr, false, trueObjptrPredicate, NULL,
+          // printObjPtrFunction, NULL);
+// #endif
+  // compute object size and bytes to be copied
+  size_t objectSize, copySize, metaDataSize;
+  metaDataSize = GC_STACK_METADATA_SIZE;
+  copySize = sizeof(struct GC_stack) + stackP->used + metaDataSize;
+  // objectSize = sizeofObject(s, stackPtr);
+  objectSize = copySize;
+  // copyObject can add a chunk to the list. It updates the frontier but not the
+  // thread current chunk. Also it returns the pointer to the header part.
+  pointer stackCopy = copyObject(stackPtr - metaDataSize,
+                                 objectSize, copySize, hh);
+  thread->currentChunk = HM_getChunkListLastChunk(HM_HH_getChunkList(hh));
+  stackCopy += metaDataSize;
+
+  ((GC_stack)stackCopy)->reserved = ((GC_stack)stackCopy)->used;
+  hh->concurrentPack->stack = pointerToObjptr(stackCopy, NULL);
+
+#if ASSERT
+  // printf("%s", "original stack: ");
+  // foreachObjptrInObject(s, stackPtr, false, trueObjptrPredicate, NULL,
+  //         printObjPtrFunction, NULL);
+  // printf("%s", "\n copied stack: ");
+  // foreachObjptrInObject(s, stackCopy, false, trueObjptrPredicate, NULL,
+  //         printObjPtrFunction, NULL);
+#endif
+
+  s->frontier = HM_HH_getFrontier(thread);
+  s->limitPlusSlop = HM_HH_getLimit(thread);
+  s->limit = s->limitPlusSlop - GC_HEAP_LIMIT_SLOP;
+
+  assert(invariantForMutatorFrontier (s));
+  assert(invariantForMutatorStack (s));
+  endAtomic(s);
 
 }
 
@@ -521,6 +575,7 @@ void HM_HH_addRootForCollector(HM_HierarchicalHeap hh, pointer p) {
 
 void assertInvariants(GC_thread thread)
 {
+  return;
   HM_HierarchicalHeap hh = thread->hierarchicalHeap;
   assert(NULL != hh);
 

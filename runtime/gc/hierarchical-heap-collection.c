@@ -68,7 +68,7 @@ bool skipStackAndThreadObjptrPredicate(GC_state s,
 #if (defined (MLTON_GC_INTERNAL_FUNCS))
 
 void HM_HHC_collectLocal(uint32_t desiredScope, bool force) {
-  return;
+  // return;
   GC_state s = pthread_getspecific (gcstate_key);
   GC_thread thread = getThreadCurrent(s);
   struct HM_HierarchicalHeap* hh = thread->hierarchicalHeap;
@@ -856,7 +856,8 @@ pointer copyObject(pointer p,
   assert(frontier <= limit);
 
   bool mustExtend = ((size_t)(limit - frontier) < objectSize) ||
-                    (frontier >= (pointer)chunk + HM_BLOCK_SIZE);
+                    (frontier +  GC_SEQUENCE_METADATA_SIZE
+                     >= (pointer)chunk + HM_BLOCK_SIZE);
 
   if (mustExtend) {
     /* need to allocate a new chunk */
