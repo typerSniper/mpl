@@ -1,6 +1,6 @@
 # MPL-CC
 
-MPL<sup>*</sup>/MPL-CC is an extension of the [MPL](https://github.com/MPLLang/mpl)
+MPL<sup>\*</sup>/MPL-CC is an extension of the [MPL](https://github.com/MPLLang/mpl)
 compiler. MPL-CC and MPL are research softwares that are being actively developed.
 
 The compilers are similar except that the runtime of MPL-CC implements extra garbage collection functionality.
