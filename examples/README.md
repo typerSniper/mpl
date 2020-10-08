@@ -56,7 +56,7 @@ $ bin/msort @mpl procs 4 -- -N 100000000
 
 ## Dense Matrix Multiplication
 
-Multiply two square matrices of size N*N. The sidelength N must be a
+Multiply two square matrices of size N\*N. The sidelength N must be a
 power-of-two. For example:
 ```
 $ make dmm
