@@ -4,9 +4,6 @@ This directory contains examples of parallel programming using MPL-CC.
 Each example program has a corresponding subdirectory in `src/`.
 The `lib/` directory contains common functions used across all examples.
 
-To build everything, run `make` or `make -j`. Compiled programs are
-put into a `bin/`.
-
 ## Fibonacci
 
 Calculate Fibonacci numbers with the standard recursive formula.
