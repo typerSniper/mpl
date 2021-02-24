@@ -19,6 +19,7 @@
 
 #if (defined (MLTON_GC_INTERNAL_FUNCS))
 #define LL_Log LL_FORCE
+
 // Struct to pass around args. repList is the new chunklist.
 typedef struct ConcurrentCollectArgs {
 	HM_chunkList origList;

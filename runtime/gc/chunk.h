@@ -125,21 +125,16 @@ static inline HM_chunk HM_getChunkOf(pointer p) {
 void HM_configChunks(GC_state s);
 
 HM_chunk HM_initializeChunk(pointer start, pointer end);
-
-HM_chunk HM_getFreeChunk(GC_state s, size_t bytesRequested);
-
-/* Allocate and return a pointer to a new chunk in the list
- * Requires
- *   chunk->limit - chunk->frontier <= bytesRequested
- * Returns NULL if unable to find space for such a chunk. */
-HM_chunk HM_allocateChunk(HM_chunkList list, size_t bytesRequested);
+void HM_reinitializeChunk(HM_chunk chunk) {
+  chunk->mightContainMultipleObjects = TRUE;
+  chunk->tmpHeap = NULL;
+}
 
 void HM_initChunkList(HM_chunkList list);
 HM_chunkList HM_newChunkList(void);
 
-void HM_deleteChunks(GC_state s, HM_chunkList deleteList);
-void HM_appendToSharedList(GC_state s, HM_chunkList list);
 void HM_appendChunkList(HM_chunkList destinationChunkList, HM_chunkList chunkList);
+
 
 void HM_appendChunk(HM_chunkList list, HM_chunk chunk);
 
@@ -154,7 +149,10 @@ void HM_unlinkChunk(HM_chunkList list, HM_chunk chunk);
  *   BEFORE: ... <-> chunk <-> ...
  *   AFTER:  ... <-> chunk <-> result <-> ...
  * if chunk cannot be split as such, returns NULL. */
+
+HM_chunk HM_splitChunkFront(HM_chunkList list, HM_chunk chunk, size_t bytesRequested);
 HM_chunk HM_splitChunk(HM_chunkList list, HM_chunk chunk, size_t bytesRequested);
+
 
 void HM_coalesceChunks(HM_chunk left, HM_chunk right);
 
@@ -224,6 +222,10 @@ size_t HM_getChunkSizePastFrontier(HM_chunk chunk);
  */
 pointer HM_getChunkStart(HM_chunk chunk);
 
+bool HM_chunkHasBytesFree(HM_chunk chunk, size_t bytes) {
+  return chunk != NULL && (size_t)(chunk->limit - HM_getChunkStart(chunk)) >= bytes;
+}
+
 /* shift the start of the chunk, to store e.g. a heap record.
  * returns a pointer to the gap, or NULL if no more space is available. */
 pointer HM_shiftChunkStart(HM_chunk chunk, size_t bytes);
@@ -256,6 +258,8 @@ HM_chunkList HM_getChunkList(HM_chunk chunk);
 
 uint32_t HM_getObjptrDepth(objptr op);
 uint32_t HM_getObjptrDepthPathCompress(objptr op);
+
+
 
 #endif /* MLTON_GC_INTERNAL_FUNCS */
 

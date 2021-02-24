@@ -7,7 +7,7 @@
 void HM_remember(HM_chunkList remSet, objptr dst, objptr* field, objptr src) {
   HM_chunk chunk = HM_getChunkListLastChunk(remSet);
   if (NULL == chunk || (size_t)(chunk->limit - chunk->frontier) < sizeof(struct HM_remembered)) {
-    chunk = HM_allocateChunk(remSet, sizeof(struct HM_remembered));
+    chunk = Alloc_allocateChunk(remSet, sizeof(struct HM_remembered));
   }
 
   assert(NULL != chunk);

@@ -278,7 +278,7 @@ void HM_HHC_collectLocal(uint32_t desiredScope) {
 
   HM_foreachRemembered(s, &globalDownPtrs, &forwardDownPtrClosure);
   LOG(LM_HH_COLLECTION, LL_DEBUG, "END forwarding global down-pointers");
-  HM_appendChunkList(getFreeListSmall(s), &globalDownPtrs);
+  Alloc_freeChunkList(s, &globalDownPtrs);
 
   LOG(LM_HH_COLLECTION, LL_DEBUG, "END root copy");
 
@@ -345,7 +345,7 @@ void HM_HHC_collectLocal(uint32_t desiredScope) {
         chunkCursor = chunkCursor->nextChunk;
       }
 #endif
-      HM_appendChunkList(getFreeListSmall(s), remset);
+      Alloc_freeChunkList(s, remset);
     }
 
 #if ASSERT
@@ -361,7 +361,7 @@ void HM_HHC_collectLocal(uint32_t desiredScope) {
 
     /* This implicitly frees the heap records too, because they are stored in
      * the level list. */
-    HM_appendChunkList(getFreeListSmall(s), level);
+    Alloc_freeChunkList(s, level);
 
     hhTail = nextAncestor;
   }
@@ -742,7 +742,7 @@ pointer copyObject(pointer p,
 
   if (mustExtend) {
     /* need to allocate a new chunk */
-    chunk = HM_allocateChunk(tgtChunkList, objectSize);
+    chunk = Alloc_allocateChunk(tgtChunkList, objectSize);
     if (NULL == chunk) {
       DIE("Ran out of space for Hierarchical Heap!");
     }
@@ -756,7 +756,7 @@ pointer copyObject(pointer p,
   HM_updateChunkValues(chunk, newFrontier);
   // if (newFrontier >= (pointer)chunk + HM_BLOCK_SIZE) {
   //   /* size is arbitrary; just need a new chunk */
-  //   chunk = HM_allocateChunk(tgtChunkList, GC_HEAP_LIMIT_SLOP);
+  //   chunk = Alloc_allocateChunk(tgtChunkList, GC_HEAP_LIMIT_SLOP);
   //   if (NULL == chunk) {
   //     DIE("Ran out of space for Hierarchical Heap!");
   //   }

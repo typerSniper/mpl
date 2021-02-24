@@ -43,8 +43,8 @@ struct GC_state {
   uint32_t frameInfosLength; /* Cardinality of frameInfos array. */
   struct HM_chunkList freeListSmall;
   struct HM_chunkList freeListLarge;
-  HM_chunkList sharedfreeList;
-  bool* freeListLock;
+
+  struct GeneralAllocator* allocator;
   struct HM_chunkList extraSmallObjects;
   size_t nextChunkAllocSize;
   /* Ordinary globals */

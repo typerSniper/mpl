@@ -137,7 +137,7 @@ GC_thread newThreadWithHeap(GC_state s, size_t reserved, uint32_t depth) {
 
   /* note that new heaps are initialized with one free chunk */
   HM_chunk tChunk = HM_getChunkListFirstChunk(HM_HH_getChunkList(hh));
-  HM_chunk sChunk = HM_allocateChunk(HM_HH_getChunkList(hh), stackSize);
+  HM_chunk sChunk = Alloc_allocateChunk(HM_HH_getChunkList(hh), stackSize);
   if (NULL == sChunk) {
     DIE("Ran out of space for stack allocation!");
   }

@@ -57,8 +57,8 @@ bool Seg_dequeList(SegQ q, const size_t bytesRequested, HM_chunkList list) {
 	int idx = getQIdx(bytesRequested, q);
 
 	while(idx < q->numSegments) {
+		// BQ_dequeList populates the chunkList list
 		if (BQ_dequeList(&(q->segments[idx]), bytesRequested, list)) {
-			if (idx == q->numSegments-1) {printf("last segment\n");}
 			return true;
 		}
 		idx++;

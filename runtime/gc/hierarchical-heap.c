@@ -216,7 +216,7 @@ HM_HierarchicalHeap HM_HH_new(GC_state s, uint32_t depth)
     bytesNeeded += sizeof(struct ConcurrentPackage);
   }
 
-  HM_chunk chunk = HM_getFreeChunk(s, bytesNeeded);
+  HM_chunk chunk = Alloc_getFreeChunk(s, bytesNeeded);
   pointer start = HM_shiftChunkStart(chunk, bytesNeeded);
   assert(start!=NULL);
 
@@ -338,7 +338,7 @@ bool HM_HH_extend(GC_state s, GC_thread thread, size_t bytesRequested)
      * logic below. */
   }
 
-  chunk = HM_allocateChunk(HM_HH_getChunkList(hh), bytesRequested);
+  chunk = Alloc_allocateChunk(HM_HH_getChunkList(hh), bytesRequested);
 
   if (NULL == chunk) {
     return FALSE;
@@ -398,7 +398,7 @@ void HM_HH_splitChunkList(HM_HierarchicalHeap hh, GC_thread thread) {
   HM_chunkList fromList = HM_HH_getFromList(hh);
   *(fromList) = *(chunkList);
   HM_initChunkList(chunkList);
-  HM_chunk newChunk = HM_allocateChunk(chunkList, GC_HEAP_LIMIT_SLOP);
+  HM_chunk newChunk = Alloc_allocateChunk(chunkList, GC_HEAP_LIMIT_SLOP);
   newChunk->levelHead = hh;
   thread->currentChunk = HM_getChunkListLastChunk(chunkList);
 

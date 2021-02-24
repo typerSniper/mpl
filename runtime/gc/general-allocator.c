@@ -1,3 +1,5 @@
+#define BASE_SIZE (pow(2, 13))
+
 static void printListStats(HM_chunkList list) {
   int countChunks =0;
   for(HM_chunk chunk = list->firstChunk; chunk!=NULL; chunk = chunk->nextChunk) {
@@ -7,41 +9,59 @@ static void printListStats(HM_chunkList list) {
   HM_getChunkListSize(list), countChunks);
 }
 
-static size_t getFreeSize(GC_state s) {
-  return HM_getChunkListSize(getFreeListExtraSmall(s)) +
-         HM_getChunkListSize(getFreeListSmall(s))+
-         HM_getChunkListSize(getFreeListLarge(s));
+// TODO: Optimize this out by storing.
+size_t getFreeListSize(FreeList f) {
+  size_t size = 0;
+  for (int i=0; i<f->numSegments; i++)
+    size+=HM_getChunkListSize(&(f->segments[i]));
+  return size;
 }
 
-static void enforceUsedFraction(GC_state s) {
+static void getChunksFromList(FreeList f, const size_t bytesRequested,
+                              HM_chunkList retList) {
 
-  size_t free = getFreeSize(s),
-         allocated = s->hoardData->allocated,
-         used = allocated - free;
+  int idx = f->numSegments-1;
+  size_t sizeAdded = 0;
 
-  const float f = 0.5;
+  HM_chunk t, chunk;
+  HM_chunkList list;
 
-  if (f * allocated <= used) {
-    return;
+  while(idx >= 0 && sizeAdded < bytesRequested) {
+    list = &(f->segments[idx]);
+    chunk = list->firstChunk;
+
+    while(sizeAdded < bytesRequested && chunk!=NULL) {
+      t = chunk->nextChunk;
+
+      HM_unlinkChunk(list, chunk);
+      HM_appendChunk(retList, chunk);
+      sizeAdded+=HM_getChunkSize(chunk);
+
+      chunk = t;
+    }
+    idx--;
   }
-
-  size_t freeSize = allocated - (used/f);
-
-  struct HM_chunkList _upList;
-  HM_chunkList upList = &(_upList);
-  HM_initChunkList(upList);
-
-  FL_getList(getSegFreeList(s), freeSize, upList)
-
-  assert(upList->firstChunk!=NULL);
-  assert(HM_getChunkListSize(upList) >= freeSize);
-
-  HD_appendToSharedList(s->hoardData->sharedfreeList, upList);
-  s->hoardData->allocated -= HM_getChunkListSize(upList);
 }
 
+static FreeList getFreeList(GC_state s) {return s->allocator->localFreeList;}
 
-static FreeList getFreeList(GC_state s) {return ;}
+static FreeList getSharedFreeList(GC_state s) {
+  return s->allocator->sharedfreeList;
+}
+
+static inline void updateAllocCounter(GC_state s, size_t change) {
+  s->allocator->allocated+=change;
+}
+
+static inline size_t getAllocCounter(GC_state s) {
+  return s->allocator->allocated;
+}
+
+static size_t getThresholdSize(GC_state s) {
+  // return s->nextChunkAllocSize;
+  return align(BASE_SIZE*(pow(2, s->allocator->localFreeList->numSegments)),
+   HM_BLOCK_SIZE);
+}
 
 static void initFreeList(FreeList f) {
   const int numSegments = 7;
@@ -67,6 +87,8 @@ static HM_chunk getChunkFromList(HM_chunkList list, size_t bytesRequested) {
     chunk->startGap = 0;
     chunk->frontier = HM_getChunkStart(chunk);
     if (HM_chunkHasBytesFree(chunk, bytesRequested)) return chunk;
+    chunk = chunk->nextChunk;
+    remainingToCheck--;
   }
   return NULL;
 }
@@ -78,7 +100,6 @@ static int getFIdx(size_t chunkSize, FreeList f) {
 
   if (idx > f->numSegments-1) return (f->numSegments-1);
   else if (idx < 0) return 0;
-  // TODO: check this idx again
   else return idx;
 }
 
@@ -88,7 +109,7 @@ static bool isUnlinked(HM_chunk chunk) {
 
 void addChunkToFreeList(FreeList f, HM_chunk chunk) {
   assert(isUnlinked(chunk));
-  HM_appendChunk(&(f->segments[getQIdx(HM_getChunkSize(chunk), f)]), chunk);
+  HM_appendChunk(&(f->segments[getFIdx(HM_getChunkSize(chunk), f)]), chunk);
 }
 
 HM_chunk checkFreeList (FreeList f, const size_t bytesRequested) {
@@ -100,10 +121,14 @@ HM_chunk checkFreeList (FreeList f, const size_t bytesRequested) {
     HM_chunk chunk = getChunkFromList(list, bytesRequested);
     if (chunk!=NULL) {
       HM_chunk result =
-          HM_splitChunkFront(getFreeListSmall(s), chunk, bytesRequested);
+          HM_splitChunkFront(list, chunk, bytesRequested);
       HM_unlinkChunk(list, chunk);
-      HM_unlinkChunk(list, result);
-      addChunkToFreeList(f, result);
+
+      if (result!=NULL) {
+        HM_unlinkChunk(list, result);
+        addChunkToFreeList(f, result);
+      }
+
       return chunk;
     }
     idx++;
@@ -111,9 +136,13 @@ HM_chunk checkFreeList (FreeList f, const size_t bytesRequested) {
   return false;
 }
 
-void addChunksToFreeList(FreeList f, HM_chunkList chunkList) {
+void addChunksToFreeList(FreeList f, HM_chunkList list) {
+
+  struct HM_chunkList _deleteList;
+  HM_chunkList deleteList = &(_deleteList);
+
   HM_chunk chunk, t;
-  chunk = chunkList->firstChunk;
+  chunk = list->firstChunk;
   while(chunk!=NULL) {
     t = chunk->nextChunk;
     HM_unlinkChunk(list, chunk);
@@ -125,9 +154,88 @@ void addChunksToFreeList(FreeList f, HM_chunkList chunkList) {
     // else {
     HM_appendChunk(&(f->segments[idx]), chunk);
     // }
+
+    chunk = t;
   }
+
+  // Alloc_deleteChunkList(deleteList);
 }
 
+static size_t deleteBigChunks(GC_state s) {
+  FreeList f = getFreeList(s);
+
+  HM_chunkList list = &(f->segments[f->numSegments-1]);
+  HM_chunk chunk = list->firstChunk;
+  HM_chunk t;
+  size_t thresh = getThresholdSize(s), deleted = 0;
+
+
+  while(chunk!=NULL) {
+    t = chunk->nextChunk;
+    if (HM_getChunkSize(chunk) > thresh){
+      HM_unlinkChunk(list, chunk);
+      deleted+=HM_getChunkSize(chunk);
+      GC_release (chunk, HM_getChunkSize(chunk));
+    }
+    chunk = t;
+  }
+
+  // list = &(f->segments[0]);
+  // chunk = list->firstChunk;
+  // size_t freed = 0;
+  // size_t target = HM_getChunkListSize(list)/2;
+
+  // while(chunk!=NULL && freed<target) {
+  //   t = chunk->nextChunk;
+  //   if (HM_getChunkSize(chunk) > thresh){
+  //     HM_unlinkChunk(list, chunk);
+  //     freed+=HM_getChunkSize(chunk);
+  //     GC_release (chunk, HM_getChunkSize(chunk));
+  //   }
+  //   chunk = t;
+  // }
+
+
+  return deleted;
+}
+
+static void enforceUsedFraction(GC_state s) {
+  size_t free = getFreeListSize(getFreeList(s)),
+         allocated = getAllocCounter(s),
+         used = allocated - free;
+
+  const float f = 0.5;
+
+  if (f * allocated <= used) {
+    return;
+  }
+
+  // try freeing the big chunks in freeList
+  // size_t deleted = 0;
+  size_t deleted = deleteBigChunks(s);
+
+  free-=deleted;
+  allocated-=deleted;
+  if (f * allocated <= used) {
+    return;
+  }
+
+  size_t freeSize = allocated - (used/f);
+
+  struct HM_chunkList _upList;
+  HM_chunkList upList = &(_upList);
+  HM_initChunkList(upList);
+
+  getChunksFromList(getFreeList(s), freeSize, upList);
+
+  assert(upList->firstChunk!=NULL);
+  assert(HM_getChunkListSize(upList) >= freeSize);
+  // printf("size of first = %d & last = %d\n",
+    // HM_getChunkListSize(&(s->allocator->localFreeList->segments[0])),
+    // HM_getChunkListSize(&(s->allocator->localFreeList->segments[6])));
+  HD_appendToSharedList(getSharedFreeList(s), upList);
+  updateAllocCounter(s, -1*HM_getChunkListSize(upList));
+}
 
 HM_chunk mmapNewChunk(__attribute__((unused)) GC_state s, size_t chunkWidth) {
   assert(isAligned(chunkWidth, HM_BLOCK_SIZE));
@@ -147,19 +255,19 @@ HM_chunk mmapNewChunk(__attribute__((unused)) GC_state s, size_t chunkWidth) {
 }
 
 static HM_chunk getChunksFromSharedList(GC_state s, size_t bytesRequested) {
-
   struct HM_chunkList _sharedListChunks;
   HM_chunkList sharedListChunks = &(_sharedListChunks);
   HM_initChunkList(sharedListChunks);
 
-  bool satisfied = HD_getSharedListChunks(s->hoardData->sharedfreeList,
+  bool satisfied = HD_getSharedListChunks(getSharedFreeList(s),
                                     bytesRequested,
                                     sharedListChunks);
 
-  s->hoardData->allocated += HM_getChunkListSize(sharedListChunks);
+  size_t newAllocation = HM_getChunkListSize(sharedListChunks);
+
+  updateAllocCounter(s, newAllocation);
 
   if (satisfied) {
-
 
     HM_chunk chunk = HM_getChunkListFirstChunk(sharedListChunks);
     while(chunk!=NULL) {
@@ -168,24 +276,31 @@ static HM_chunk getChunksFromSharedList(GC_state s, size_t bytesRequested) {
 
         if (HM_chunkHasBytesFree(chunk, bytesRequested)) {
 
-          // append the chunk to the large list and split it
-          HM_appendChunk(getFreeListLarge(s), chunk);
-          HM_splitChunkFront(getFreeListLarge(s), chunk, bytesRequested);
-          HM_unlinkChunk(getFreeListLarge(s), chunk);
+          // printf("found chunk from shared = %d, requested = %d, total = %d \n",
+                  // HM_getChunkSize(chunk), bytesRequested, newAllocation);
 
-          // TODO: add code to append selectively
-          // add remaining chunks to the free list.
-          printf("found chunk = %d, request = %d\n",
-                HM_getChunkSize(chunk), bytesRequested);
-          HM_appendChunkList(getFreeListSmall(s), sharedListChunks);
+          HM_appendChunk(getFreeListExtraSmall(s), chunk);
+
+          HM_chunk result =
+            HM_splitChunkFront(getFreeListExtraSmall(s), chunk, bytesRequested);
+
+          HM_unlinkChunk(getFreeListExtraSmall(s), chunk);
+
+          if (result!=NULL) {
+            HM_unlinkChunk(getFreeListExtraSmall(s), result);
+            addChunkToFreeList(getFreeList(s), result);
+          }
+
+          addChunksToFreeList(getFreeList(s), sharedListChunks);
           return chunk;
         }
-        else HM_appendChunk(getFreeListSmall(s), chunk);
+        else addChunkToFreeList(getFreeList(s), chunk);
 
         chunk = HM_getChunkListFirstChunk(sharedListChunks);
       }
     }
-  else HM_appendChunkList(getFreeListSmall(s), sharedListChunks);
+
+  addChunksToFreeList(getFreeList(s), sharedListChunks);
 
   return NULL;
 }
@@ -204,7 +319,14 @@ static HM_chunk getChunk(GC_state s, size_t bytesRequested) {
     return chunk;
   }
 
-  size_t bytesNeeded = align(bytesRequested + sizeof(struct HM_chunk), HM_BLOCK_SIZE);
+  size_t bytesNeeded = align(bytesRequested +
+                                sizeof(struct HM_chunk), HM_BLOCK_SIZE);
+
+  // size_t allocSize = bytesNeeded;
+  // if (bytesNeeded < BASE_SIZE*100) {
+  //   allocSize = BASE_SIZE*100;
+  // }
+
   size_t allocSize = max(bytesNeeded, s->nextChunkAllocSize);
   chunk = mmapNewChunk(s, allocSize);
   if (NULL != chunk) {
@@ -230,7 +352,7 @@ static HM_chunk getChunk(GC_state s, size_t bytesRequested) {
       s->nextChunkAllocSize /= 2;
     }
   }
-  s->hoardData->allocated += HM_getChunkSize(chunk);
+  updateAllocCounter(s, HM_getChunkSize(chunk));
 
   // TODO:: hack, fix it later
   HM_prependChunk(getFreeListExtraSmall(s), chunk);
@@ -238,24 +360,28 @@ static HM_chunk getChunk(GC_state s, size_t bytesRequested) {
           HM_splitChunkFront(getFreeListExtraSmall(s), chunk, bytesRequested);
 
   HM_unlinkChunk(getFreeListExtraSmall(s), chunk);
-  HM_unlinkChunk(getFreeListExtraSmall(s), result);
-  addChunkToFreeList(getFreeSize(s), result);
+
+  if (result!=NULL) {
+    HM_unlinkChunk(getFreeListExtraSmall(s), result);
+    addChunkToFreeList(getFreeList(s), result);
+  }
+
   return chunk;
 }
 
 
-void Alloc_init(HD_data h) {
-  h->allocated = 0;
-  h->sharedfreeList = (SharedList)malloc(sizeof(SharedListStruct));
-  initSharedList(h->sharedfreeList);
-  h->localFreeList = (FreeList)malloc(sizeof (struct FreeList))
-  initFreeList(h->localFreeList);
+void Alloc_init(GeneralAllocator g) {
+  g->allocated = 0;
+  g->sharedfreeList = (SharedList)malloc(sizeof(SharedListStruct));
+  initSharedList(g->sharedfreeList);
+  g->localFreeList = (FreeList)malloc(sizeof (struct FreeList));
+  initFreeList(g->localFreeList);
 }
 
-void Alloc_dup(HD_data h, HD_data g) {
+void Alloc_dup(GeneralAllocator h, GeneralAllocator g) {
   h->allocated = 0;
   h->sharedfreeList = g->sharedfreeList;
-  h->localFreeList = (FreeList)malloc(sizeof (struct FreeList))
+  h->localFreeList = (FreeList)malloc(sizeof (struct FreeList));
   initFreeList(h->localFreeList);
 }
 
@@ -278,23 +404,19 @@ HM_chunk Alloc_allocateChunk(HM_chunkList list, size_t bytesRequested) {
 }
 
 void Alloc_freeChunk(GC_state s, HM_chunk chunk) {
-  addChunkToFreeList(s->allocator-)
+  addChunkToFreeList(getFreeList(s), chunk);
   enforceUsedFraction(s);
 }
 
 void Alloc_freeChunkList(GC_state s, HM_chunkList chunkList) {
-  struct HM_chunkList _deleteList;
-  HM_chunkList deleteList = &(_deleteList);
-
-  addChunksToFreeList (getFreeList(s), chunkList, deleteList);
-  Alloc_deleteChunkList(s, deleteList);
-
+  addChunksToFreeList (getFreeList(s), chunkList);
   enforceUsedFraction(s);
 }
 
-void Alloc_deleteChunkList(GC_state s, HM_chunkList deleteList) {
+void Alloc_deleteChunkList(HM_chunkList deleteList) {
+  GC_state s = pthread_getspecific(gcstate_key);
 
-  s->hoardData->allocated -= HM_getChunkListSize(deleteList);
+  updateAllocCounter(s, -1*HM_getChunkListSize(deleteList));
 
   HM_chunk chunk = deleteList->firstChunk;
   while (chunk!=NULL) {

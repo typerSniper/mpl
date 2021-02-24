@@ -47,7 +47,7 @@ void growStackCurrent(GC_state s) {
 
   /* in this case, the new stack needs more space, so allocate a new chunk,
    * copy the stack, and throw away the old chunk. */
-  HM_chunk newChunk = HM_allocateChunk(HM_HH_getChunkList(hh), stackSize);
+  HM_chunk newChunk = Alloc_allocateChunk(HM_HH_getChunkList(hh), stackSize);
   if (NULL == newChunk) {
     DIE("Ran out of space to grow stack!");
   }
@@ -69,7 +69,7 @@ void growStackCurrent(GC_state s) {
 
   assert(getThreadCurrent(s)->currentChunk != chunk);
   HM_unlinkChunk(HM_HH_getChunkList(hh), chunk);
-  HM_appendChunk(getFreeListSmall(s), chunk);
+  Alloc_freeChunk(s, chunk);
 }
 
 void GC_collect (GC_state s, size_t bytesRequested, bool force) {

@@ -417,7 +417,7 @@ void CC_filterDownPointers(GC_state s, HM_chunkList x, HM_HierarchicalHeap hh){
   {.fun = bucketIfValidAtList, .env = (void*)x};
 
   HM_foreachRemembered(s, y, &bucketIfValidAtListClosure);
-  HM_appendChunkList(getFreeListSmall(s), y);
+  Alloc_freeChunkList(s, y);
   *y = *x;
 }
 
@@ -597,8 +597,8 @@ void CC_collectWithRoots(GC_state s, HM_HierarchicalHeap targetHH,
     chunk = tChunk;
   }
 
-  HM_appendChunkList(getFreeListSmall(s), origList);
-  HM_deleteChunks(s, deleteList);
+  Alloc_freeChunkList(s, origList);
+  Alloc_deleteChunkList(deleteList);
 
   for(HM_chunk chunk = repList->firstChunk;
     chunk!=NULL; chunk = chunk->nextChunk) {
