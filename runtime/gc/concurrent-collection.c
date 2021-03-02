@@ -197,6 +197,29 @@ bool isChunkInList(HM_chunk chunk, HM_chunkList list) {
   return FALSE;
 }
 
+
+static size_t sizeofLiveData(GC_state s, HM_chunkList list) {
+  HM_chunk chunk = HM_getChunkListFirstChunk (list);
+  uint64_t live = 0;
+  while(chunk!=NULL) {
+    pointer p = HM_getChunkStart(chunk);
+
+    while(p != chunk->frontier){
+      assert(p < chunk->frontier);
+
+      p = advanceToObjectData(s, p);
+      if (CC_isPointerMarked (p)) live+=sizeofObject(s, p);
+      p += sizeofObjectNoMetaData(s, p);
+    }
+
+    assert(chunk->frontier <= chunk->limit);
+    chunk = chunk->nextChunk;
+  }
+  return live;
+}
+
+
+
 void forwardPtrChunk (GC_state s, objptr *opp, void* rawArgs) {
   objptr op = *opp;
   assert(isObjptr(op));
@@ -516,6 +539,17 @@ void CC_collectWithRoots(GC_state s, HM_HierarchicalHeap targetHH,
       FALSE);
   }
   #endif
+
+  if (HM_HH_getDepth(targetHH) == 1) {
+    size_t live = sizeofLiveData(s, lists.repList);
+    // printf("live = %zu, total = %zu \n", live,
+      // HM_getChunkListSize(lists.repList));
+    if (HM_getChunkSize(lists.repList)!=0){
+      GC_updateWorstFragmentationAtRoot(s,
+          1 - (live/(double)HM_getChunkListSize(lists.repList)),
+          HM_getChunkListSize(lists.repList));
+    }
+  }
 
   struct HM_foreachDownptrClosure unmarkDownPtrChunkClosure =
   {.fun = unmarkDownPtrChunk, .env = &lists};

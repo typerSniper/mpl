@@ -23,6 +23,8 @@ enum {
 
 struct GC_globalCumulativeStatistics {
   size_t maxHeapOccupancy;
+  float worstFrag;
+  size_t sizeofFragmentedList;
 };
 
 struct GC_cumulativeStatistics {

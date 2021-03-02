@@ -206,6 +206,15 @@ void GC_setHashConsDuringGC(__attribute__((unused)) GC_state s, __attribute__((u
   DIE("GC_setHashConsDuringGC unsupported");
 }
 
+void GC_updateWorstFragmentationAtRoot (GC_state s, double f, size_t listSize) {
+  if (f > s->globalCumulativeStatistics->worstFrag ||
+      s->globalCumulativeStatistics->worstFrag < 0){
+
+    s->globalCumulativeStatistics->worstFrag = f;
+    s->globalCumulativeStatistics->sizeofFragmentedList = listSize;
+  }
+}
+
 size_t GC_getLastMajorStatisticsBytesLive (GC_state s) {
   return s->lastMajorStatistics->bytesLive;
 }

@@ -28,6 +28,7 @@ struct GC_globalCumulativeStatistics* newGlobalCumulativeStatistics(void) {
 
   stats = malloc(sizeof(struct GC_globalCumulativeStatistics));
   stats->maxHeapOccupancy = 0;
+  stats->worstFrag = -1.0;
 
   return stats;
 }
