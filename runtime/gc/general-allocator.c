@@ -143,9 +143,6 @@ HM_chunk checkFreeList (FreeList f, const size_t bytesRequested) {
 
 void addChunksToFreeList(FreeList f, HM_chunkList list) {
 
-  struct HM_chunkList _deleteList;
-  HM_chunkList deleteList = &(_deleteList);
-
   HM_chunk chunk, t;
   chunk = list->firstChunk;
   while(chunk!=NULL) {
