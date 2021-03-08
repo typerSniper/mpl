@@ -1,4 +1,4 @@
-/* Copyright (C) 2018-2019 Sam Westrick
+/* Copyright (C) 2018-2021 Sam Westrick
  *
  * MLton is released under a HPND-style license.
  * See the file MLton-LICENSE for details.
@@ -11,12 +11,18 @@ void HM_remember(HM_chunkList remSet, objptr dst, objptr* field, objptr src) {
   }
 
   assert(NULL != chunk);
-  assert((size_t)(chunk->limit - chunk->frontier) >= sizeof(struct HM_remembered));
-  struct HM_remembered* r = (struct HM_remembered*)chunk->frontier;
+  assert(HM_getChunkSizePastFrontier(chunk) >= sizeof(struct HM_remembered));
+  pointer frontier = HM_getChunkFrontier(chunk);
+
+  HM_updateChunkFrontierInList(
+    remSet,
+    chunk,
+    frontier + sizeof(struct HM_remembered));
+
+  struct HM_remembered* r = (struct HM_remembered*)frontier;
   r->dst = dst;
   r->field = field;
   r->src = src;
-  chunk->frontier += sizeof(struct HM_remembered);
 }
 
 void HM_rememberAtLevel(HM_HierarchicalHeap hh, objptr dst, objptr* field, objptr src) {

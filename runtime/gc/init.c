@@ -415,16 +415,11 @@ int GC_init (GC_state s, int argc, char **argv) {
   s->rootsLength = 0;
   s->savedThread = BOGUS_OBJPTR;
 
-  HM_initChunkList(getFreeListSmall(s));
-  HM_initChunkList(getFreeListLarge(s));
-  HM_initChunkList(getFreeListExtraSmall(s));
-
   s->nextChunkAllocSize = (size_t*)malloc(sizeof(size_t));
   s->allocator = (GeneralAllocator) (malloc (sizeof(struct GeneralAllocator)));
   Alloc_init(s->allocator);
-  // HM_initChunkList(s->sharedfreeList);
-  // s->freeListLock = (bool*) (malloc(sizeof(bool)));
-  // *(s->freeListLock) = false;
+  initFixedSizeAllocator(getHHAllocator(s), sizeof(struct HM_HierarchicalHeap));
+  initFixedSizeAllocator(getUFAllocator(s), sizeof(struct HM_UnionFindNode));
 
   s->signalHandlerThread = BOGUS_OBJPTR;
   s->signalsInfo.amInSignalHandler = FALSE;
@@ -510,6 +505,7 @@ void GC_lateInit (GC_state s) {
   /* this has to happen AFTER pthread_setspecific for the main thread */
   HM_configChunks(s);
 
+  HH_EBR_init(s);
 
   /* Initialize profiling.  This must occur after processing
    * command-line arguments, because those may just be doing a
@@ -539,13 +535,13 @@ void GC_duplicate (GC_state d, GC_state s) {
   d->wsQueue = BOGUS_OBJPTR;
   d->wsQueueTop = BOGUS_OBJPTR;
   d->wsQueueBot = BOGUS_OBJPTR;
-  HM_initChunkList(getFreeListSmall(d));
-  HM_initChunkList(getFreeListLarge(d));
-  HM_initChunkList(getFreeListExtraSmall(d));
 
   d->allocator = (GeneralAllocator) (malloc (sizeof(struct GeneralAllocator)));
   Alloc_dup(d->allocator, s->allocator);
 
+  initFixedSizeAllocator(getHHAllocator(d), sizeof(struct HM_HierarchicalHeap));
+  initFixedSizeAllocator(getUFAllocator(d), sizeof(struct HM_UnionFindNode));
+  d->hhEBR = s->hhEBR;
   d->nextChunkAllocSize = s->nextChunkAllocSize;
   d->lastMajorStatistics = newLastMajorStatistics();
   d->numberOfProcs = s->numberOfProcs;

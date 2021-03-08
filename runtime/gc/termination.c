@@ -70,34 +70,6 @@ bool GC_TryToTerminate(GC_state s) {
    * terminate. Otherwise, another processor has won the race and will lead the
    * termination protocol. */
   // if (!atomic_compare_exchange_strong(pleader(s), &inval, myself))
-  uint64_t size = 0, size1 = 0, sizef = 0;
-  for (uint32_t p = 0; p < s->numberOfProcs; p++) {
-    GC_state t = &(s->procStates[p]);
-
-    FreeList f = t->allocator->localFreeList;
-    for (int i=0; i<f->numSegments; i++) {
-      size+=HM_getChunkListSize(&(f->segments[i]));
-      if (i>6) {sizef+=HM_getChunkListSize(&(f->segments[i]));}
-    }
-
-    size1+=(HM_getChunkListSize(&(f->segments[0])));
-    // printf("total memory in first segment [%d] %zu \n",
-      // p, HM_getChunkListSize(&(f->segments[0])));
-    // printf("total memory in free-list [%d] %zu \n", p, size);
-  }
-
-  for (int i=0; i<s->allocator->sharedfreeList->numSegments; i++) {
-    size_t in = (s->allocator->sharedfreeList->segments[i]).size;
-
-    size+=in;
-    if (i>6) {sizef+=in;}
-  }
-
-  size1+=(s->allocator->sharedfreeList->segments[0]).size;
-
-  printf("first segment = %llu, large = %llu and total = %llu \n",
-         size1, sizef, size);
-
   if (!__sync_bool_compare_and_swap(pleader(s), inval, myself))
     return false;
 

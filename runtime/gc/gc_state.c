@@ -1,4 +1,5 @@
-/* Copyright (C) 2009,2012,2019 Matthew Fluet.
+/* Copyright (C) 2018-2021 Sam Westrick.
+ * Copyright (C) 2009,2012,2019 Matthew Fluet.
  * Copyright (C) 1999-2008 Henry Cejtin, Matthew Fluet, Suresh
  *    Jagannathan, and Stephen Weeks.
  * Copyright (C) 1997-2000 NEC Research Institute.
@@ -49,17 +50,12 @@ void setGCStateCurrentThreadAndStack (GC_state s) {
   s->stackLimit = getStackLimit (s, stack);
 }
 
-struct HM_chunkList* getFreeListExtraSmall(GC_state s) {
-  return &(s->extraSmallObjects);
+struct FixedSizeAllocator* getHHAllocator(GC_state s) {
+  return &(s->hhAllocator);
 }
 
-struct HM_chunkList* getFreeListSmall(GC_state s) {
-  return &(s->freeListSmall);
-}
-
-
-struct HM_chunkList* getFreeListLarge(GC_state s) {
-  return &(s->freeListLarge);
+struct FixedSizeAllocator* getUFAllocator(GC_state s) {
+  return &(s->hhUnionFindAllocator);
 }
 
 bool GC_getAmOriginal (GC_state s) {
@@ -204,15 +200,6 @@ uintmax_t GC_getPromoMillisecondsOfProc(GC_state s, uint32_t proc) {
 __attribute__((noreturn))
 void GC_setHashConsDuringGC(__attribute__((unused)) GC_state s, __attribute__((unused)) bool b) {
   DIE("GC_setHashConsDuringGC unsupported");
-}
-
-void GC_updateWorstFragmentationAtRoot (GC_state s, double f, size_t listSize) {
-  if (f > s->globalCumulativeStatistics->worstFrag ||
-      s->globalCumulativeStatistics->worstFrag < 0){
-
-    s->globalCumulativeStatistics->worstFrag = f;
-    s->globalCumulativeStatistics->sizeofFragmentedList = listSize;
-  }
 }
 
 size_t GC_getLastMajorStatisticsBytesLive (GC_state s) {

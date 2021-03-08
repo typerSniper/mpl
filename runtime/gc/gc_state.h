@@ -41,15 +41,15 @@ struct GC_state {
   objptr wsQueueBot;
   GC_frameInfo frameInfos; /* Array of frame infos. */
   uint32_t frameInfosLength; /* Cardinality of frameInfos array. */
-  struct HM_chunkList freeListSmall;
-  struct HM_chunkList freeListLarge;
 
-  struct GeneralAllocator* allocator;
-  struct HM_chunkList extraSmallObjects;
   size_t* nextChunkAllocSize;
   /* Ordinary globals */
   objptr *globals;
   uint32_t globalsLength;
+  struct GeneralAllocator* allocator;
+  struct FixedSizeAllocator hhAllocator;
+  struct FixedSizeAllocator hhUnionFindAllocator;
+  struct HH_EBR_shared * hhEBR;
   struct GC_lastMajorStatistics *lastMajorStatistics;
   pointer limitPlusSlop; /* limit + GC_HEAP_LIMIT_SLOP */
   int (*loadGlobals)(FILE *f); /* loads the globals from the file. */
@@ -97,10 +97,11 @@ static void displayGCState (GC_state s, FILE *stream);
 static inline size_t sizeofGCStateCurrentStackUsed (GC_state s);
 static inline void setGCStateCurrentThreadAndStack (GC_state s);
 
-static inline struct HM_chunkList* getFreeListExtraSmall(GC_state s);
 static inline struct HM_chunkList* getFreeListSmall(GC_state s);
 static inline struct HM_chunkList* getFreeListLarge(GC_state s);
 struct HM_chunkList* HM_getsharedFreeList(GC_state s);
+
+static inline struct FixedSizeAllocator* getHHAllocator(GC_state s);
 
 
 #endif /* (defined (MLTON_GC_INTERNAL_FUNCS)) */
@@ -123,9 +124,6 @@ PRIVATE uintmax_t GC_getCumulativeStatisticsNumMinorGCs (GC_state s);
 PRIVATE size_t GC_getCumulativeStatisticsMaxBytesLive (GC_state s);
 PRIVATE void GC_setHashConsDuringGC (GC_state s, bool b);
 PRIVATE size_t GC_getLastMajorStatisticsBytesLive (GC_state s);
-
-PRIVATE void GC_updateWorstFragmentationAtRoot(GC_state s, double f,
-                                                size_t listSize);
 
 PRIVATE uintmax_t GC_getCumulativeStatisticsBytesAllocatedOfProc(GC_state s, uint32_t proc);
 PRIVATE uintmax_t GC_getCumulativeStatisticsLocalBytesReclaimedOfProc(GC_state s, uint32_t proc);

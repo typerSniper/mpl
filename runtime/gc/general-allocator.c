@@ -303,7 +303,6 @@ static HM_chunk getChunksFromSharedList(GC_state s, size_t bytesRequested) {
 
     HM_chunk chunk = HM_getChunkListFirstChunk(sharedListChunks);
     while(chunk!=NULL) {
-        HM_unlinkChunk(sharedListChunks, chunk);
         assert(chunk->frontier == HM_getChunkStart(chunk));
 
         if (HM_chunkHasBytesFree(chunk, bytesRequested)) {
@@ -311,31 +310,26 @@ static HM_chunk getChunksFromSharedList(GC_state s, size_t bytesRequested) {
           // printf("found chunk from shared = %d, requested = %d, total = %d \n",
                   // HM_getChunkSize(chunk), bytesRequested, newAllocation);
 
-          HM_appendChunk(getFreeListExtraSmall(s), chunk);
-
           HM_chunk result =
-            HM_splitChunkFront(getFreeListExtraSmall(s), chunk, bytesRequested);
+            HM_splitChunkFront(sharedListChunks, chunk, bytesRequested);
 
-          HM_unlinkChunk(getFreeListExtraSmall(s), chunk);
+          HM_unlinkChunk(sharedListChunks, chunk);
 
           if (result!=NULL) {
-            HM_unlinkChunk(getFreeListExtraSmall(s), result);
+            HM_unlinkChunk(sharedListChunks, result);
             addChunkToFreeList(getFreeList(s), result);
           }
 
           addChunksToFreeList(getFreeList(s), sharedListChunks);
           return chunk;
         }
-        else addChunkToFreeList(getFreeList(s), chunk);
-
+        else {
+          HM_unlinkChunk(sharedListChunks, chunk);
+          addChunkToFreeList(getFreeList(s), chunk);
+        }
         chunk = HM_getChunkListFirstChunk(sharedListChunks);
       }
     }
-
-    // else {
-    //   printf("didn't find chunk, requested = %d, total = %d \n",
-    //             bytesRequested, newAllocation);
-    // }
 
   addChunksToFreeList(getFreeList(s), sharedListChunks);
 
@@ -361,10 +355,6 @@ static HM_chunk getChunk(GC_state s, size_t bytesRequested) {
       return chunk;
     }
   }
-  else {
-    printf("allocating bug chunk %d\n", bytesRequested);
-  }
-
   size_t bytesNeeded = align(bytesRequested +
                                 sizeof(struct HM_chunk), HM_BLOCK_SIZE);
   size_t allocSize = bytesNeeded;
@@ -402,14 +392,10 @@ static HM_chunk getChunk(GC_state s, size_t bytesRequested) {
   updateAllocCounter(s, HM_getChunkSize(chunk));
 
   // TODO:: hack, fix it later
-  HM_prependChunk(getFreeListExtraSmall(s), chunk);
   HM_chunk result =
-          HM_splitChunkFront(getFreeListExtraSmall(s), chunk, bytesRequested);
-
-  HM_unlinkChunk(getFreeListExtraSmall(s), chunk);
+        HM_splitChunkFrontWithoutList(chunk, bytesRequested);
 
   if (result!=NULL) {
-    HM_unlinkChunk(getFreeListExtraSmall(s), result);
     addChunkToFreeList(getFreeList(s), result);
   }
 

@@ -358,9 +358,10 @@ void HM_HHC_collectLocal(uint32_t desiredScope) {
     }
 #endif
 
-    /* This implicitly frees the heap records too, because they are stored in
-     * the level list. */
     Alloc_freeChunkList(s, level);
+    HM_HH_freeAllDependants(s, hhTail, FALSE);
+    freeFixedSize(getUFAllocator(s), HM_HH_getUFNode(hhTail));
+    freeFixedSize(getHHAllocator(s), hhTail);
 
     hhTail = nextAncestor;
   }
@@ -377,7 +378,7 @@ void HM_HHC_collectLocal(uint32_t desiredScope) {
   }
 
   /* merge in toSpace */
-  hh = HM_HH_zip(hhTail, hhToSpace);
+  hh = HM_HH_zip(s, hhTail, hhToSpace);
   thread->hierarchicalHeap = hh;
 
   /* update currentChunk and associated */
@@ -435,6 +436,10 @@ void HM_HHC_collectLocal(uint32_t desiredScope) {
     HM_chunkList lev = HM_HH_getChunkList(cursor);
     size_t sizeAfter = HM_getChunkListSize(lev);
     totalSizeAfter += sizeAfter;
+
+#if ASSERT
+    HM_assertChunkListInvariants(lev);
+#endif
 
     if (LOG_ENABLED(LM_HH_COLLECTION, LL_INFO) &&
         (sizesBefore[i] != 0 || sizeAfter != 0))
@@ -541,7 +546,7 @@ objptr relocateObject(
     HM_chunk chunk = HM_getChunkOf(p);
     HM_unlinkChunk(HM_HH_getChunkList(HM_getLevelHead(chunk)), chunk);
     HM_appendChunk(tgtChunkList, chunk);
-    chunk->levelHead = tgtHeap;
+    chunk->levelHead = HM_HH_getUFNode(tgtHeap);
 
     LOG(LM_HH_COLLECTION, LL_DEBUGMORE,
       "Moved single-object chunk %p of size %zu",
@@ -692,8 +697,9 @@ void forwardHHObjptr (GC_state s,
 
     HM_HierarchicalHeap tgtHeap = args->toSpace[opDepth];
     if (tgtHeap == NULL) {
-      /* Level does not exist, so create it */
-      /* SAM_NOTE: new heaps are initialized with one free chunk. */
+      /** Level does not exist, so create it. Relocating an object allocates
+        * chunks lazily, so we don't need a fresh chunk here.
+        */
       tgtHeap = HM_HH_new(s, opDepth);
       args->toSpace[opDepth] = tgtHeap;
     }
@@ -745,14 +751,14 @@ pointer copyObject(pointer p,
     if (NULL == chunk) {
       DIE("Ran out of space for Hierarchical Heap!");
     }
-    chunk->levelHead = tgtHeap;
+    chunk->levelHead = HM_HH_getUFNode(tgtHeap);
   }
 
   pointer frontier = HM_getChunkFrontier(chunk);
 
   GC_memcpy(p, frontier, copySize);
   pointer newFrontier = frontier + objectSize;
-  HM_updateChunkValues(chunk, newFrontier);
+  HM_updateChunkFrontierInList(tgtChunkList, chunk, newFrontier);
   // if (newFrontier >= (pointer)chunk + HM_BLOCK_SIZE) {
   //   /* size is arbitrary; just need a new chunk */
   //   chunk = Alloc_allocateChunk(tgtChunkList, GC_HEAP_LIMIT_SLOP);

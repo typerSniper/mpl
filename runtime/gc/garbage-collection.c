@@ -41,7 +41,10 @@ void growStackCurrent(GC_state s) {
    * stack in place. */
   if (stackSize <= (size_t)(HM_getChunkLimit(chunk) - HM_getChunkStart(chunk))) {
     getStackCurrent(s)->reserved = reserved;
-    HM_updateChunkValues(chunk, HM_getChunkStart(chunk) + stackSize);
+    HM_updateChunkFrontierInList(
+      HM_HH_getChunkList(hh),
+      chunk,
+      HM_getChunkStart(chunk) + stackSize);
     return;
   }
 
@@ -53,7 +56,7 @@ void growStackCurrent(GC_state s) {
   }
   assert(stackSize < HM_getChunkSizePastFrontier(newChunk));
   newChunk->mightContainMultipleObjects = FALSE;
-  newChunk->levelHead = hh;
+  newChunk->levelHead = HM_HH_getUFNode(hh);
 
   pointer frontier = HM_getChunkFrontier(newChunk);
   assert(frontier == HM_getChunkStart(newChunk));
@@ -62,7 +65,10 @@ void growStackCurrent(GC_state s) {
   stack = (GC_stack)(frontier + GC_HEADER_SIZE);
   stack->reserved = reserved;
   stack->used = 0;
-  HM_updateChunkValues(newChunk, frontier + stackSize);
+  HM_updateChunkFrontierInList(
+    HM_HH_getChunkList(hh),
+    newChunk,
+    frontier + stackSize);
 
   copyStack(s, getStackCurrent(s), stack);
   getThreadCurrent(s)->stack = pointerToObjptr((pointer)stack, NULL);
@@ -83,7 +89,21 @@ void GC_collect (GC_state s, size_t bytesRequested, bool force) {
   /* used needs to be set because the mutator has changed s->stackTop. */
   getStackCurrent(s)->used = sizeofGCStateCurrentStackUsed(s);
   getThreadCurrent(s)->exnStack = s->exnStack;
+  HM_HH_updateValues(getThreadCurrent(s), s->frontier);
   beginAtomic(s);
+  HH_EBR_leaveQuiescentState(s);
+
+  // HM_HierarchicalHeap h = getThreadCurrent(s)->hierarchicalHeap;
+  // while (h->nextAncestor != NULL) h = h->nextAncestor;
+  // if (HM_HH_getDepth(h) == 0 && HM_getChunkListSize(HM_HH_getChunkList(h)) > 8192) {
+  //   size_t gsize = HM_getChunkListSize(HM_HH_getChunkList(h));
+  //   size_t gusize = HM_getChunkListUsedSize(HM_HH_getChunkList(h));
+  //   printf("[BIG GLOBAL %d] size: %zu, used: %zu (%.01lf%%)\n",
+  //     s->procNumber,
+  //     gsize,
+  //     gusize,
+  //     100.0 * ((double)gusize / (double)gsize));
+  // }
 
   assert(getThreadCurrent(s)->hierarchicalHeap != NULL);
   assert(threadAndHeapOkay(s));
