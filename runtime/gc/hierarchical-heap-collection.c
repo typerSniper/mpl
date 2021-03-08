@@ -134,7 +134,6 @@ void HM_HHC_collectLocal(uint32_t desiredScope) {
   if (SUPERLOCAL == s->controls->collectionType) {
     minDepth = maxDepth;
   }
-
   /* copy roots */
   struct ForwardHHObjptrArgs forwardHHObjptrArgs = {
     .hh = hh,

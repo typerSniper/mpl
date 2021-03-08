@@ -46,7 +46,7 @@ struct GC_state {
 
   struct GeneralAllocator* allocator;
   struct HM_chunkList extraSmallObjects;
-  size_t nextChunkAllocSize;
+  size_t* nextChunkAllocSize;
   /* Ordinary globals */
   objptr *globals;
   uint32_t globalsLength;

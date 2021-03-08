@@ -419,6 +419,7 @@ int GC_init (GC_state s, int argc, char **argv) {
   HM_initChunkList(getFreeListLarge(s));
   HM_initChunkList(getFreeListExtraSmall(s));
 
+  s->nextChunkAllocSize = (size_t*)malloc(sizeof(size_t));
   s->allocator = (GeneralAllocator) (malloc (sizeof(struct GeneralAllocator)));
   Alloc_init(s->allocator);
   // HM_initChunkList(s->sharedfreeList);
@@ -504,7 +505,7 @@ int GC_init (GC_state s, int argc, char **argv) {
 
 void GC_lateInit (GC_state s) {
 
-  s->nextChunkAllocSize = s->controls->allocChunkSize;
+  *(s->nextChunkAllocSize) = s->controls->allocChunkSize;
 
   /* this has to happen AFTER pthread_setspecific for the main thread */
   HM_configChunks(s);

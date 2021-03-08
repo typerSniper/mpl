@@ -82,7 +82,7 @@ bool CQ_dequeList(CQ q, const size_t bytesRequested, HM_chunkList list) {
     return NULL;
   }
 
-  int remainingToCheck = 2;
+  int remainingToCheck = 5;
   bool foundChunk = false;
 
   HM_chunk chunk = HD_popTop(q);

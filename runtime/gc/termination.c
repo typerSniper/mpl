@@ -98,10 +98,6 @@ bool GC_TryToTerminate(GC_state s) {
   printf("first segment = %llu, large = %llu and total = %llu \n",
          size1, sizef, size);
 
-  printf("worst frag at root = %f at size = %llu",
-    s->globalCumulativeStatistics->worstFrag,
-    s->globalCumulativeStatistics->sizeofFragmentedList);
-
   if (!__sync_bool_compare_and_swap(pleader(s), inval, myself))
     return false;
 
