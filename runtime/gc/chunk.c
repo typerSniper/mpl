@@ -461,6 +461,11 @@ void HM_appendChunkList(HM_chunkList list1, HM_chunkList list2) {
       ((void*)(list2)),
       ((void*)(list1)));
 
+
+  HM_assertChunkListInvariants(list1);
+  HM_assertChunkListInvariants(list2);
+
+
   assert(NULL != list1);
 
   if (NULL == list2) {

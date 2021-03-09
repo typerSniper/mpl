@@ -89,6 +89,7 @@ static HM_chunk getChunkFromList(HM_chunkList list, size_t bytesRequested) {
   while(chunk!=NULL && remainingToCheck > 0) {
     chunk->startGap = 0;
     chunk->frontier = HM_getChunkStart(chunk);
+
     if (HM_chunkHasBytesFree(chunk, bytesRequested)) return chunk;
     chunk = chunk->nextChunk;
     remainingToCheck--;
@@ -229,10 +230,10 @@ static size_t deleteBigChunks(GC_state s) {
 }
 
 static void enforceUsedFraction(GC_state s) {
+  // return;
   size_t free = getFreeListSize(getFreeList(s)),
          allocated = getAllocCounter(s),
          used = allocated - free;
-
   const float f = 0.5;
 
   if (f * allocated <= used) {
@@ -284,6 +285,7 @@ HM_chunk mmapNewChunk(__attribute__((unused)) GC_state s, size_t chunkWidth) {
 }
 
 static HM_chunk getChunksFromSharedList(GC_state s, size_t bytesRequested) {
+  // return NULL;
   struct HM_chunkList _sharedListChunks;
   HM_chunkList sharedListChunks = &(_sharedListChunks);
   HM_initChunkList(sharedListChunks);
